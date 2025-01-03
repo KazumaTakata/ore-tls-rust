@@ -1,4 +1,5 @@
 mod client_hello;
+mod server_hello;
 use client_hello::HandshakeProtocol;
 use rand::rngs::OsRng;
 use rand::RngCore;
@@ -10,6 +11,8 @@ use std::{
     net::TcpStream,
     time::Duration,
 };
+
+mod handshake;
 
 fn parseRecordLayer(data: Vec<u8>) {
     let record_layer = client_hello::RecordLayer::from_byte_vector(data);
