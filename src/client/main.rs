@@ -16,8 +16,12 @@ use std::{
 mod handshake;
 
 fn parseRecordLayer(data: Vec<u8>) {
-    let record_layer = client_hello::RecordLayer::from_byte_vector(&data);
-    println!("Record Layer: {:#?}", record_layer);
+    let (record_layer, rest_data) = client_hello::RecordLayer::from_byte_vector(&data);
+    let (record_layer_2, rest_data_2) = client_hello::RecordLayer::from_byte_vector(&rest_data);
+    let (record_layer_3, rest_data_3) = client_hello::RecordLayer::from_byte_vector(&rest_data_2);
+
+    println!("Record Layer1: {:#?}", record_layer);
+    println!("Record Layer2: {:#?}", record_layer_2);
 }
 
 fn main() {

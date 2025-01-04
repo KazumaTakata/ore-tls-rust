@@ -193,7 +193,7 @@ impl<'a> RecordLayer<'a> {
         result
     }
 
-    pub fn from_byte_vector(data: &'a [u8]) -> RecordLayer<'a> {
+    pub fn from_byte_vector(data: &'a [u8]) -> (RecordLayer<'a>, &'a [u8]) {
         let content_type = data[0];
         let version = u16::from_be_bytes([data[1], data[2]]);
         let length = data[3];
@@ -202,12 +202,16 @@ impl<'a> RecordLayer<'a> {
         let parsed_length = u16::from_be_bytes([length, length_2]);
 
         let message = &data[5..(5 + parsed_length as usize)];
+        let rest_message = &data[(5 + parsed_length as usize)..];
         let handshake_protocol = HandshakeProtocol::from_byte_vector(&message);
-        RecordLayer {
-            content_type: ContentType::Handshake,
-            version: TLSVersion::from_u16(version),
-            message: handshake_protocol,
-        }
+        return (
+            RecordLayer {
+                content_type: ContentType::Handshake,
+                version: TLSVersion::from_u16(version),
+                message: handshake_protocol,
+            },
+            rest_message,
+        );
     }
 }
 
