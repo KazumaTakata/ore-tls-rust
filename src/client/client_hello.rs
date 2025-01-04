@@ -1,7 +1,8 @@
 use crate::handshake::{
     ApplicationLayerProtocol, ApplicationLayerProtocolNegotiationExtension, CipherSuites,
-    ClientHelloExtensionType, HandshakeExtension, HandshakeType, SignatureAlgorithms,
-    SignatureAlgorithmsExtension, SupportedGroupsExtension, SupportedVersionsExtension, TLSVersion,
+    ClientHelloExtensionType, HandshakeExtension, HandshakeProtocol, HandshakeType,
+    SignatureAlgorithms, SignatureAlgorithmsExtension, SupportedGroupsExtension,
+    SupportedVersionsExtension, TLSVersion,
 };
 use crate::server_hello::ServerHello;
 use rand::rngs::OsRng;
@@ -11,30 +12,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use std::vec;
 use std::{io::Write, net::TcpStream, time::Duration};
 
-pub enum HandshakeProtocol {
-    ClientHello(ClientHello),
-    ServerHello(ServerHello),
-}
-
-impl HandshakeProtocol {
-    fn to_byte_vector(&self) -> Vec<u8> {
-        match self {
-            HandshakeProtocol::ClientHello(client_hello) => client_hello.to_byte_vector(),
-            _ => vec![],
-        }
-    }
-
-    fn from_byte_vector(data: Vec<u8>) -> HandshakeProtocol {
-        let handshake_type = HandshakeType::try_from(data[0]).unwrap();
-        match handshake_type {
-            HandshakeType::ServerHello => {
-                let server_hello = ServerHello::from_byte_vector(data);
-                HandshakeProtocol::ServerHello(server_hello)
-            }
-            _ => panic!("Unsupported handshake type"),
-        }
-    }
-}
+#[derive(Debug)]
 pub struct ClientHello {
     version: TLSVersion,
     random: [u8; 32],
@@ -133,7 +111,7 @@ impl ClientHello {
 
         random
     }
-    fn to_byte_vector(&self) -> Vec<u8> {
+    pub fn to_byte_vector(&self) -> Vec<u8> {
         let mut result = vec![];
         result.push(HandshakeType::ClientHello as u8);
         let mut client_hello_body = vec![];
@@ -187,14 +165,15 @@ impl ClientHello {
     }
 }
 
-pub struct RecordLayer {
+#[derive(Debug)]
+pub struct RecordLayer<'a> {
     content_type: ContentType,
     version: TLSVersion,
-    message: HandshakeProtocol,
+    message: HandshakeProtocol<'a>,
 }
 
-impl RecordLayer {
-    pub fn new() -> RecordLayer {
+impl<'a> RecordLayer<'a> {
+    pub fn new<'b>() -> RecordLayer<'b> {
         let message = HandshakeProtocol::ClientHello(ClientHello::new());
 
         RecordLayer {
@@ -214,7 +193,7 @@ impl RecordLayer {
         result
     }
 
-    pub fn from_byte_vector(data: Vec<u8>) -> RecordLayer {
+    pub fn from_byte_vector(data: &'a [u8]) -> RecordLayer<'a> {
         let content_type = data[0];
         let version = u16::from_be_bytes([data[1], data[2]]);
         let length = data[3];
@@ -222,8 +201,8 @@ impl RecordLayer {
 
         let parsed_length = u16::from_be_bytes([length, length_2]);
 
-        let message = data[5..(5 + parsed_length as usize)].to_vec();
-        let handshake_protocol = HandshakeProtocol::from_byte_vector(message);
+        let message = &data[5..(5 + parsed_length as usize)];
+        let handshake_protocol = HandshakeProtocol::from_byte_vector(&message);
         RecordLayer {
             content_type: ContentType::Handshake,
             version: TLSVersion::from_u16(version),
@@ -232,7 +211,7 @@ impl RecordLayer {
     }
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 enum ContentType {
     ApplicationData,
     Handshake = 22,

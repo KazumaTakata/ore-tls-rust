@@ -1,5 +1,6 @@
 use crate::handshake::{CipherSuites, HandshakeExtension, TLSVersion};
 
+#[derive(Debug)]
 pub struct ServerHello {
     version: TLSVersion,
     random: [u8; 32],
@@ -8,7 +9,7 @@ pub struct ServerHello {
 }
 
 impl ServerHello {
-    pub fn from_byte_vector(data: Vec<u8>) -> ServerHello {
+    pub fn from_byte_vector(data: &[u8]) -> ServerHello {
         let length_1 = data[1];
         let length_2 = data[2];
         let length_3 = data[3];
@@ -31,7 +32,7 @@ impl ServerHello {
         let extension_length = u16::from_be_bytes([server_hello_data[38], server_hello_data[39]]);
 
         let server_extension = HandshakeExtension::from_byte_vector(
-            data[40..(40 + extension_length as usize)].to_vec(),
+            server_hello_data[40..(40 + extension_length as usize)].to_vec(),
         );
 
         return ServerHello {

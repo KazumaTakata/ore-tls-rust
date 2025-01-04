@@ -1,4 +1,11 @@
-#[derive(Copy, Clone)]
+use x509_parser::prelude::CertificatePolicies;
+
+use crate::{
+    certificate::TLSCertificate, client_hello::ClientHello, server_hello::ServerHello,
+    server_key_exchange::ServerKeyExchange,
+};
+
+#[derive(Copy, Clone, Debug)]
 pub enum CipherSuites {
     // TLS 1.3 Cipher Suites
     TLS_AES_128_GCM_SHA256 = 0x1301,
@@ -136,7 +143,7 @@ pub enum ClientHelloExtensionType {
     SignatureAlgorithmsCert = 50,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub enum SignatureAlgorithms {
     RSA_PKCS1_SHA256 = 0x0401,
     RSA_PKCS1_SHA384 = 0x0501,
@@ -149,7 +156,7 @@ pub enum SignatureAlgorithms {
     RSA_PSS_RSAE_SHA512 = 0x0806,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub enum TLSVersion {
     V1_0 = 0x0301,
     V1_1 = 0x0302,
@@ -169,6 +176,7 @@ impl TLSVersion {
     }
 }
 
+#[derive(Debug)]
 pub enum HandshakeExtension {
     SupportedVersions(SupportedVersionsExtension),
     SignatureAlgorithms(SignatureAlgorithmsExtension),
@@ -192,10 +200,12 @@ impl HandshakeExtension {
     }
 }
 
+#[derive(Debug)]
 pub struct ApplicationLayerProtocolNegotiationExtension {
     pub algorithms: Vec<ApplicationLayerProtocol>,
 }
 
+#[derive(Debug)]
 pub enum ApplicationLayerProtocol {
     HTTP1_1,
     HTTP2,
@@ -239,8 +249,8 @@ impl ApplicationLayerProtocolNegotiationExtension {
     }
     pub fn from_byte_vector(data: Vec<u8>) -> ApplicationLayerProtocolNegotiationExtension {
         let _length = u16::from_be_bytes([data[0], data[1]]);
-        let alpn_extension_length = u16::from_be_bytes([data[2], data[3]]);
-        let protocol = data[2..(2 + alpn_extension_length as usize)].to_vec();
+        let alpn_extension_length = u8::from_be_bytes([data[2]]);
+        let protocol = data[3..(3 + alpn_extension_length as usize)].to_vec();
         match protocol.as_slice() {
             b"http/1.1" => ApplicationLayerProtocolNegotiationExtension {
                 algorithms: vec![ApplicationLayerProtocol::HTTP1_1],
@@ -253,6 +263,7 @@ impl ApplicationLayerProtocolNegotiationExtension {
     }
 }
 
+#[derive(Debug)]
 pub struct SupportedVersionsExtension {
     pub versions: Vec<TLSVersion>,
 }
@@ -271,6 +282,7 @@ impl SupportedVersionsExtension {
     }
 }
 
+#[derive(Debug)]
 pub struct SignatureAlgorithmsExtension {
     pub algorithms: Vec<SignatureAlgorithms>,
 }
@@ -290,6 +302,7 @@ impl SignatureAlgorithmsExtension {
     }
 }
 
+#[derive(Debug)]
 pub struct SupportedGroupsExtension {
     pub groups: Vec<u16>,
 }
@@ -304,5 +317,42 @@ impl SupportedGroupsExtension {
             result.extend_from_slice(&(*group as u16).to_be_bytes());
         }
         result
+    }
+}
+
+#[derive(Debug)]
+pub enum HandshakeProtocol<'a> {
+    ClientHello(ClientHello),
+    ServerHello(ServerHello),
+    Certificate(TLSCertificate<'a>),
+    ServerKeyExchange(ServerKeyExchange),
+}
+
+impl<'a> HandshakeProtocol<'a> {
+    pub fn to_byte_vector(&self) -> Vec<u8> {
+        match self {
+            HandshakeProtocol::ClientHello(client_hello) => client_hello.to_byte_vector(),
+            _ => vec![],
+        }
+    }
+
+    pub fn from_byte_vector<'b>(data: &'b [u8]) -> HandshakeProtocol<'b> {
+        let handshake_type = HandshakeType::try_from(data[0]).unwrap();
+        match handshake_type {
+            HandshakeType::ServerHello => {
+                let server_hello = ServerHello::from_byte_vector(data);
+                HandshakeProtocol::ServerHello(server_hello)
+            }
+            HandshakeType::Certificate => {
+                let certificate = TLSCertificate::from_byte_vector(data);
+                HandshakeProtocol::Certificate(certificate)
+            }
+            HandshakeType::ServerKeyExchange => {
+                let server_key_exchange = ServerKeyExchange::from_byte_vector(data);
+                HandshakeProtocol::ServerKeyExchange(server_key_exchange)
+            }
+
+            _ => panic!("Unsupported handshake type"),
+        }
     }
 }

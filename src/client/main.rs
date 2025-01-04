@@ -1,6 +1,7 @@
+mod certificate;
 mod client_hello;
 mod server_hello;
-use client_hello::HandshakeProtocol;
+mod server_key_exchange;
 use rand::rngs::OsRng;
 use rand::RngCore;
 use std::f32::consts::E;
@@ -15,7 +16,8 @@ use std::{
 mod handshake;
 
 fn parseRecordLayer(data: Vec<u8>) {
-    let record_layer = client_hello::RecordLayer::from_byte_vector(data);
+    let record_layer = client_hello::RecordLayer::from_byte_vector(&data);
+    println!("Record Layer: {:#?}", record_layer);
 }
 
 fn main() {
@@ -37,5 +39,5 @@ fn main() {
 
     println!("Received: {:X?}", received);
 
-    println!("Hello, world!");
+    parseRecordLayer(received);
 }
