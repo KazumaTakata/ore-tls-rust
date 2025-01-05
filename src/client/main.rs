@@ -13,15 +13,20 @@ use std::{
     time::Duration,
 };
 
+mod generate_key;
 mod handshake;
 
 fn parseRecordLayer(data: Vec<u8>) {
     let (record_layer, rest_data) = client_hello::RecordLayer::from_byte_vector(&data);
     let (record_layer_2, rest_data_2) = client_hello::RecordLayer::from_byte_vector(&rest_data);
     let (record_layer_3, rest_data_3) = client_hello::RecordLayer::from_byte_vector(&rest_data_2);
+    let (record_layer_4, rest_data_4) = client_hello::RecordLayer::from_byte_vector(&rest_data_3);
 
     println!("Record Layer1: {:#?}", record_layer);
     println!("Record Layer2: {:#?}", record_layer_2);
+    println!("Record Layer3: {:#?}", record_layer_3);
+    println!("Record Layer4: {:#?}", record_layer_4);
+    println!("Rest Data: {:X?}", rest_data_4);
 }
 
 fn main() {

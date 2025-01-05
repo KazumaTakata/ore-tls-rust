@@ -43,3 +43,5 @@ impl ServerHello {
         };
     }
 }
+
+pub struct ServerHelloDone;

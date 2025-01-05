@@ -326,6 +326,7 @@ pub enum HandshakeProtocol<'a> {
     ServerHello(ServerHello),
     Certificate(TLSCertificate<'a>),
     ServerKeyExchange(ServerKeyExchange),
+    ServerHelloDone,
 }
 
 impl<'a> HandshakeProtocol<'a> {
@@ -351,7 +352,7 @@ impl<'a> HandshakeProtocol<'a> {
                 let server_key_exchange = ServerKeyExchange::from_byte_vector(data);
                 HandshakeProtocol::ServerKeyExchange(server_key_exchange)
             }
-
+            HandshakeType::ServerHelloDone => HandshakeProtocol::ServerHelloDone,
             _ => panic!("Unsupported handshake type"),
         }
     }
