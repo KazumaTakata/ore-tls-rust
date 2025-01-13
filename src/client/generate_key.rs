@@ -10,33 +10,38 @@ const master_secret_length: usize = 48;
 
 type HmacSha256 = Hmac<Sha256>;
 
-fn generate_pre_master_sercret(partner_public_key: [u8; 32]) -> (SharedSecret, PublicKey) {
-    let my_secret_key = EphemeralSecret::random_from_rng(OsRng);
-    let my_public_key = PublicKey::from(&my_secret_key);
+fn generate_pre_master_sercret(
+    partner_public_key: [u8; 32],
+    my_secret_key: EphemeralSecret,
+) -> SharedSecret {
+    // let my_secret_key = EphemeralSecret::random_from_rng(OsRng);
+    // let my_public_key = PublicKey::from(&my_secret_key);
+
     let partner_public_key: PublicKey = PublicKey::from(partner_public_key);
     let shared_secret = my_secret_key.diffie_hellman(&partner_public_key);
-    return (shared_secret, my_public_key);
+    return shared_secret;
 }
 
-pub fn key_exchange(
+pub fn generate_key_iv(
     partner_public_key: [u8; 32],
+    my_secret_key: EphemeralSecret,
     client_random: [u8; 32],
     server_random: [u8; 32],
-) {
-    let (pre_master_secret, my_public_key) = generate_pre_master_sercret(partner_public_key);
+) -> (Vec<u8>, Vec<u8>, Vec<u8>) {
+    let pre_master_secret = generate_pre_master_sercret(partner_public_key, my_secret_key);
     println!(
         "pre_master_secret: {:?}",
         pre_master_secret.as_bytes().len()
     );
     let byte_pre_master_secret = pre_master_secret.as_bytes();
-    let block = generate_key_block(byte_pre_master_secret, client_random, server_random);
+    return generate_key_block(byte_pre_master_secret, client_random, server_random);
 }
 
 fn generate_key_block(
     pre_master_secret: &[u8; 32],
     client_random: [u8; 32],
     server_random: [u8; 32],
-) -> Vec<u8> {
+) -> (Vec<u8>, Vec<u8>, Vec<u8>) {
     let client_random_and_server_random = [client_random, server_random].concat();
     let master_secret = PRF(
         pre_master_secret,
@@ -65,7 +70,7 @@ fn generate_key_block(
     let client_iv = key_block[32..36 as usize].to_vec();
     let server_iv = key_block[36..40 as usize].to_vec();
 
-    return master_secret;
+    return (client_key, client_iv, master_secret);
 }
 
 pub fn PRF(pre_master_secret: &[u8], seed: &[u8], label: &str, length: usize) -> Vec<u8> {

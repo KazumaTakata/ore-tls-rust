@@ -1,6 +1,7 @@
 use crate::change_cipher_spec::{self, ChangeCipherSpec};
 use crate::client_hello::ClientHello;
 use crate::client_key_exchange;
+use crate::encrypt_message::FinishedMessage;
 use crate::handshake::{
     ApplicationLayerProtocol, ApplicationLayerProtocolNegotiationExtension, CipherSuites,
     ClientHelloExtensionType, HandshakeExtension, HandshakeProtocol, HandshakeType,
@@ -66,14 +67,34 @@ impl<'a> RecordLayer<'a> {
         );
     }
 
-    pub fn to_byte_vector(&self) -> Vec<u8> {
+    pub fn new_finished<'b>(
+        master_secret: &[u8; 48],
+        handshake_messages: &[u8],
+        key: &[u8; 16],
+        iv: Vec<u8>,
+    ) -> (RecordLayer<'b>, [u8; 32]) {
+        let finished_message = FinishedMessage::new(&master_secret, &handshake_messages, key, iv);
+
+        let message = HandshakeProtocol::FinishedMessage(finished_message);
+
+        return (
+            RecordLayer {
+                content_type: ContentType::Handshake,
+                version: TLSVersion::V1_2,
+                message: message,
+            },
+            [0; 32],
+        );
+    }
+
+    pub fn to_byte_vector(&self) -> (Vec<u8>, Vec<u8>) {
         let mut result = vec![];
         result.push(self.content_type as u8);
         result.extend_from_slice(&(self.version as u16).to_be_bytes());
         let message = self.message.to_byte_vector();
         result.extend_from_slice(&(message.len() as u16).to_be_bytes());
         result.extend_from_slice(&message);
-        result
+        return (result, message);
     }
 
     pub fn from_byte_vector(data: &'a [u8]) -> (RecordLayer<'a>, &'a [u8], &'a [u8]) {

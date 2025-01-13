@@ -2,7 +2,8 @@ mod certificate;
 mod client_hello;
 mod server_hello;
 mod server_key_exchange;
-use generate_key::key_exchange;
+use encrypt_message::FinishedMessage;
+use generate_key::generate_key_iv;
 use handshake::HandshakeProtocol;
 use rand::rngs::OsRng;
 use rand::RngCore;
@@ -10,6 +11,7 @@ use record_layer::RecordLayer;
 use server_key_exchange::ServerKeyExchange;
 use std::f32::consts::E;
 use std::io::BufRead;
+use std::os::unix::thread;
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::{
     io::{self, Write},
@@ -17,6 +19,7 @@ use std::{
     time::Duration,
 };
 use x25519_dalek::{EphemeralSecret, PublicKey};
+use x509_parser::nom::Finish;
 
 mod change_cipher_spec;
 mod client_key_exchange;
@@ -56,7 +59,7 @@ fn extract_parameter(layer: &[RecordLayer]) -> ServerParams {
     return server_params;
 }
 
-fn parseRecordLayer(data: Vec<u8>, client_random: [u8; 32]) -> ServerParams {
+fn parseRecordLayer(data: Vec<u8>, client_random: [u8; 32]) -> (ServerParams, Vec<u8>) {
     let (record_layer, message_1, rest_data) = RecordLayer::from_byte_vector(&data);
     let (record_layer_2, message_2, rest_data_2) = RecordLayer::from_byte_vector(&rest_data);
     let (record_layer_3, message_3, rest_data_3) = RecordLayer::from_byte_vector(&rest_data_2);
@@ -71,7 +74,12 @@ fn parseRecordLayer(data: Vec<u8>, client_random: [u8; 32]) -> ServerParams {
     let server_params =
         extract_parameter(&[record_layer, record_layer_2, record_layer_3, record_layer_4]);
 
-    return server_params;
+    let all_messages = [message_1, message_2, message_3, message_4].concat();
+
+    println!("server hello");
+    println!("{:x?}", message_4);
+
+    return (server_params, all_messages);
 }
 
 fn main() {
@@ -82,36 +90,77 @@ fn main() {
         .set_read_timeout(Some(Duration::from_secs(2)))
         .unwrap();
     let (record_layer, client_random) = RecordLayer::new_client_hello();
-    let msg = record_layer.to_byte_vector();
+    let (msg, client_hello_message) = record_layer.to_byte_vector();
     tcp_stream.write(&msg).unwrap();
 
     // Wrap the stream in a BufReader, so we can use the BufRead methods
-    let mut reader = io::BufReader::new(&mut tcp_stream);
+    let received: Vec<u8> = {
+        let mut reader = io::BufReader::new(&mut tcp_stream);
 
-    // Read current current data in the TcpStream
-    let received: Vec<u8> = reader.fill_buf().unwrap().to_vec();
+        // Read current current data in the TcpStream
+        reader.fill_buf().unwrap().to_vec()
+    };
 
-    println!("Received: {:X?}", received);
-
-    let server_params = parseRecordLayer(received, client_random);
+    let (server_params, all_messages) = parseRecordLayer(received, client_random);
 
     let my_secret_key = EphemeralSecret::random_from_rng(OsRng);
     let my_public_key = PublicKey::from(&my_secret_key);
 
-    let (record_layer, client_random) =
-        RecordLayer::new_client_key_change(my_public_key.to_bytes());
-    let mut msg = record_layer.to_byte_vector();
+    let (record_layer, _) = RecordLayer::new_client_key_change(my_public_key.to_bytes());
+    let (client_key_exchange_msg, client_key_exchange_message) = record_layer.to_byte_vector();
 
-    let (record_layer, client_random) = RecordLayer::new_client_change_cipher_spec();
-    let msg_change_cipher_spec = record_layer.to_byte_vector();
+    println!("client_hello_message");
+    println!("{:x?}", client_key_exchange_message);
 
-    msg = [msg, msg_change_cipher_spec].concat();
+    let all_messages = [
+        client_hello_message,
+        all_messages,
+        client_key_exchange_message,
+    ]
+    .concat();
 
-    tcp_stream.write(&msg).unwrap();
+    let (record_layer, _) = RecordLayer::new_client_change_cipher_spec();
+    let (msg_change_cipher_spec, _) = record_layer.to_byte_vector();
 
-    // key_exchange(
-    //     server_params.public_key,
-    //     client_random,
-    //     server_params.server_random,
-    // );
+    let (client_key, client_iv, master_secret) = generate_key_iv(
+        server_params.public_key,
+        my_secret_key,
+        client_random,
+        server_params.server_random,
+    );
+
+    let client_key = client_key.as_slice().try_into().unwrap();
+
+    let master_secret = master_secret.as_slice().try_into().unwrap();
+
+    println!("client_random: {:x?}", client_random);
+    println!("master_secret: {:x?}", master_secret);
+
+    let (record_layer, _) =
+        RecordLayer::new_finished(master_secret, &all_messages, &client_key, client_iv);
+
+    let (msg_finished, _) = record_layer.to_byte_vector();
+
+    let concated_msg = [
+        client_key_exchange_msg,
+        msg_change_cipher_spec,
+        msg_finished,
+    ]
+    .concat();
+
+    tcp_stream.write(&concated_msg).unwrap();
+
+    // Wrap the stream in a BufReader, so we can use the BufRead methods
+    let received: Vec<u8> = {
+        let mut reader = io::BufReader::new(&mut tcp_stream);
+
+        // Read current current data in the TcpStream
+        reader.fill_buf().unwrap().to_vec()
+    };
+
+    while { true } {
+        println!()
+    }
+
+    println!("Received: {:X?}", received);
 }

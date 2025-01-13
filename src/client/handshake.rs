@@ -1,9 +1,9 @@
-use x509_parser::prelude::CertificatePolicies;
+use x509_parser::{nom::Finish, prelude::CertificatePolicies};
 
 use crate::{
     certificate::TLSCertificate, change_cipher_spec::ChangeCipherSpec, client_hello::ClientHello,
-    client_key_exchange::ClientKeyExchange, server_hello::ServerHello,
-    server_key_exchange::ServerKeyExchange,
+    client_key_exchange::ClientKeyExchange, encrypt_message::FinishedMessage,
+    server_hello::ServerHello, server_key_exchange::ServerKeyExchange,
 };
 
 #[derive(Copy, Clone, Debug)]
@@ -330,6 +330,7 @@ pub enum HandshakeProtocol<'a> {
     ServerHelloDone,
     ChangeCipherSpec(ChangeCipherSpec),
     ClientKeyExchange(ClientKeyExchange),
+    FinishedMessage(FinishedMessage),
 }
 
 impl<'a> HandshakeProtocol<'a> {
@@ -341,6 +342,9 @@ impl<'a> HandshakeProtocol<'a> {
             }
             HandshakeProtocol::ChangeCipherSpec(change_cipher_spec) => {
                 change_cipher_spec.to_byte_vector()
+            }
+            HandshakeProtocol::FinishedMessage(finished_message) => {
+                finished_message.to_byte_vector()
             }
             _ => vec![],
         }
