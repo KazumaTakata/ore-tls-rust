@@ -15,7 +15,7 @@ use std::{io::Write, net::TcpStream, time::Duration};
 #[derive(Debug)]
 pub struct ClientHello {
     version: TLSVersion,
-    random: [u8; 32],
+    pub random: [u8; 32],
     pub session_id: [u8; 32],
     cipher_suites: Vec<CipherSuites>,
     compression_methods: Vec<u8>,
@@ -163,65 +163,6 @@ impl ClientHello {
 
         result
     }
-}
-
-#[derive(Debug)]
-pub struct RecordLayer<'a> {
-    content_type: ContentType,
-    version: TLSVersion,
-    message: HandshakeProtocol<'a>,
-}
-
-impl<'a> RecordLayer<'a> {
-    pub fn new<'b>() -> RecordLayer<'b> {
-        let message = HandshakeProtocol::ClientHello(ClientHello::new());
-
-        RecordLayer {
-            content_type: ContentType::Handshake,
-            version: TLSVersion::V1_2,
-            message: message,
-        }
-    }
-
-    pub fn to_byte_vector(&self) -> Vec<u8> {
-        let mut result = vec![];
-        result.push(self.content_type as u8);
-        result.extend_from_slice(&(self.version as u16).to_be_bytes());
-        let message = self.message.to_byte_vector();
-        result.extend_from_slice(&(message.len() as u16).to_be_bytes());
-        result.extend_from_slice(&message);
-        result
-    }
-
-    pub fn from_byte_vector(data: &'a [u8]) -> (RecordLayer<'a>, &'a [u8]) {
-        let content_type = data[0];
-        let version = u16::from_be_bytes([data[1], data[2]]);
-        let length = data[3];
-        let length_2 = data[4];
-
-        let parsed_length = u16::from_be_bytes([length, length_2]);
-
-        let message = &data[5..(5 + parsed_length as usize)];
-        let rest_message = &data[(5 + parsed_length as usize)..];
-        let handshake_protocol = HandshakeProtocol::from_byte_vector(&message);
-        return (
-            RecordLayer {
-                content_type: ContentType::Handshake,
-                version: TLSVersion::from_u16(version),
-                message: handshake_protocol,
-            },
-            rest_message,
-        );
-    }
-}
-
-#[derive(Copy, Clone, Debug)]
-enum ContentType {
-    ApplicationData,
-    Handshake = 22,
-    Alert,
-    ChangeCipherSpec,
-    Heartbeat,
 }
 
 enum SupportedGroups {

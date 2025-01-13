@@ -1,7 +1,8 @@
 use x509_parser::prelude::CertificatePolicies;
 
 use crate::{
-    certificate::TLSCertificate, client_hello::ClientHello, server_hello::ServerHello,
+    certificate::TLSCertificate, change_cipher_spec::ChangeCipherSpec, client_hello::ClientHello,
+    client_key_exchange::ClientKeyExchange, server_hello::ServerHello,
     server_key_exchange::ServerKeyExchange,
 };
 
@@ -327,12 +328,20 @@ pub enum HandshakeProtocol<'a> {
     Certificate(TLSCertificate<'a>),
     ServerKeyExchange(ServerKeyExchange),
     ServerHelloDone,
+    ChangeCipherSpec(ChangeCipherSpec),
+    ClientKeyExchange(ClientKeyExchange),
 }
 
 impl<'a> HandshakeProtocol<'a> {
     pub fn to_byte_vector(&self) -> Vec<u8> {
         match self {
             HandshakeProtocol::ClientHello(client_hello) => client_hello.to_byte_vector(),
+            HandshakeProtocol::ClientKeyExchange(client_key_exchange) => {
+                client_key_exchange.to_byte_vector()
+            }
+            HandshakeProtocol::ChangeCipherSpec(change_cipher_spec) => {
+                change_cipher_spec.to_byte_vector()
+            }
             _ => vec![],
         }
     }

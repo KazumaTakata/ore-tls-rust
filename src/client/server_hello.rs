@@ -3,7 +3,7 @@ use crate::handshake::{CipherSuites, HandshakeExtension, TLSVersion};
 #[derive(Debug)]
 pub struct ServerHello {
     version: TLSVersion,
-    random: [u8; 32],
+    pub random: [u8; 32],
     cipher_suites: Vec<CipherSuites>,
     extensions: Vec<HandshakeExtension>,
 }

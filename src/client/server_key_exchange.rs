@@ -2,14 +2,14 @@ use crate::handshake::{CipherSuites, HandshakeExtension, TLSVersion};
 
 #[derive(Debug)]
 pub struct ServerKeyExchange {
-    ecdh_server_params: ECDHServerParams,
+    pub ecdh_server_params: ECDHServerParams,
 }
 
 #[derive(Debug)]
-struct ECDHServerParams {
+pub struct ECDHServerParams {
     curve_type: CurveType,
     named_curve: NamedCurve,
-    public_key: Vec<u8>,
+    pub public_key: Vec<u8>,
     signature: Vec<u8>,
     signature_algorithm: SignatureAlgorithms,
 }
