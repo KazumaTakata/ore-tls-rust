@@ -2,7 +2,7 @@ mod certificate;
 mod client_hello;
 mod server_hello;
 mod server_key_exchange;
-use encrypt_message::FinishedMessage;
+use finished::FinishedMessage;
 use generate_key::generate_key_iv;
 use handshake::HandshakeProtocol;
 use rand::rngs::OsRng;
@@ -21,9 +21,11 @@ use std::{
 use x25519_dalek::{EphemeralSecret, PublicKey};
 use x509_parser::nom::Finish;
 
+mod application_data;
 mod change_cipher_spec;
 mod client_key_exchange;
-mod encrypt_message;
+mod encrypt;
+mod finished;
 mod generate_key;
 mod handshake;
 mod record_layer;
@@ -137,7 +139,7 @@ fn main() {
     println!("master_secret: {:x?}", master_secret);
 
     let (record_layer, _) =
-        RecordLayer::new_finished(master_secret, &all_messages, &client_key, client_iv);
+        RecordLayer::new_finished(master_secret, &all_messages, &client_key, client_iv.clone());
 
     let (msg_finished, _) = record_layer.to_byte_vector();
 
@@ -158,9 +160,17 @@ fn main() {
         reader.fill_buf().unwrap().to_vec()
     };
 
-    while { true } {
-        println!()
-    }
+    let request_data = "GET /hello HTTP/1.1\r\nHost: localhost:7878\r\n\r\n"
+        .to_string()
+        .into_bytes();
 
-    println!("Received: {:X?}", received);
+    let (record_layer, _) = RecordLayer::new_application_data(request_data, &client_key, client_iv);
+
+    let (msg_application, _) = record_layer.to_byte_vector();
+
+    tcp_stream.write(&msg_application).unwrap();
+
+    while (true) {
+        print!("")
+    }
 }

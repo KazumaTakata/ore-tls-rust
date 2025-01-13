@@ -4,37 +4,9 @@ use aes_gcm::{
 };
 use sha2::{Digest, Sha256};
 
-use crate::{generate_key::PRF, handshake::HandshakeType};
+use crate::{encrypt, generate_key::PRF, handshake::HandshakeType, record_layer::ContentType};
 
 // https://docs.rs/aes-gcm/latest/aes_gcm/
-
-fn encrypt_message(key: &[u8; 16], iv: &Vec<u8>, message: &[u8]) -> Vec<u8> {
-    let key = Key::<Aes128Gcm>::from_slice(key);
-
-    let cipher = Aes128Gcm::new(&key);
-
-    let message_length = (message.len() as u16).to_be_bytes();
-
-    let mut associated_data = vec![];
-    associated_data.extend_from_slice(&[0; 8]);
-    associated_data.extend_from_slice(&[22 as u8]);
-    associated_data.extend_from_slice(&[0x03, 0x03]);
-    associated_data.extend_from_slice(message_length.as_ref());
-
-    let payload = Payload {
-        msg: message,
-        aad: &associated_data,
-    };
-
-    let mut nonce_vector = vec![];
-    nonce_vector.extend_from_slice(&iv);
-    nonce_vector.extend_from_slice(&[0; 8]);
-
-    let nonce = Nonce::from_slice(&nonce_vector);
-    let encrypted_message = cipher.encrypt(nonce, payload).expect("encryption failure!");
-
-    return encrypted_message;
-}
 
 #[derive(Debug)]
 pub struct FinishedMessage {
@@ -66,7 +38,8 @@ impl FinishedMessage {
         let verified_data_length = (self.verify_data.len() as u32).to_be_bytes();
         result.extend_from_slice(&verified_data_length[1..4]);
         result.extend_from_slice(&self.verify_data);
-        let encrypted_message = encrypt_message(&self.key, &self.iv, &result);
+        let encrypted_message =
+            encrypt::encrypt_message(&self.key, &self.iv, &result, [0; 8], ContentType::Handshake);
 
         let mut result_2 = vec![];
         result_2.extend_from_slice(&[0; 8]);

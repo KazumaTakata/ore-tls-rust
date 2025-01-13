@@ -1,7 +1,6 @@
 use crate::change_cipher_spec::{self, ChangeCipherSpec};
 use crate::client_hello::ClientHello;
-use crate::client_key_exchange;
-use crate::encrypt_message::FinishedMessage;
+use crate::finished::FinishedMessage;
 use crate::handshake::{
     ApplicationLayerProtocol, ApplicationLayerProtocolNegotiationExtension, CipherSuites,
     ClientHelloExtensionType, HandshakeExtension, HandshakeProtocol, HandshakeType,
@@ -9,6 +8,7 @@ use crate::handshake::{
     SupportedVersionsExtension, TLSVersion,
 };
 use crate::server_hello::ServerHello;
+use crate::{application_data, client_key_exchange};
 use rand::rngs::OsRng;
 use rand::RngCore;
 use std::f32::consts::E;
@@ -87,6 +87,23 @@ impl<'a> RecordLayer<'a> {
         );
     }
 
+    pub fn new_application_data<'b>(
+        data: Vec<u8>,
+        key: &[u8; 16],
+        iv: Vec<u8>,
+    ) -> (RecordLayer<'b>, [u8; 32]) {
+        let application_data = application_data::ApplicationData::new(data, key, iv);
+
+        return (
+            RecordLayer {
+                content_type: ContentType::ApplicationData,
+                version: TLSVersion::V1_2,
+                message: HandshakeProtocol::ApplicationData(application_data),
+            },
+            [0; 32],
+        );
+    }
+
     pub fn to_byte_vector(&self) -> (Vec<u8>, Vec<u8>) {
         let mut result = vec![];
         result.push(self.content_type as u8);
@@ -122,9 +139,9 @@ impl<'a> RecordLayer<'a> {
 
 #[derive(Copy, Clone, Debug)]
 pub enum ContentType {
-    ApplicationData,
     ChangeCipherSpec = 20,
     Handshake = 22,
+    ApplicationData = 23,
     Alert,
     Heartbeat,
 }
